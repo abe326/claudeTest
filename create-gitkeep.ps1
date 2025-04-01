@@ -1,35 +1,37 @@
-通常実行（.gitkeep を作成）
-.\create-gitkeep.ps1 -RootDir "C:\MyProject"
-dry-run モード（作成せず確認）
-.\create-gitkeep.ps1 -RootDir "C:\MyProject" -DryRun
+# ==============================
+# 空フォルダに .gitkeep を配置するスクリプト（古いPowerShell対応）
+# ==============================
 
-
-param(
-    [string]$RootDir = ".",
-    [switch]$DryRun
-)
+# ▼▼▼ 設定（書き換えてOK） ▼▼▼
+$RootDir = "C:\Path\To\Your\Project"  # ← 対象のプロジェクトフォルダ（絶対パス）
+$DryRun = $false                      # ← true にすると dry-run（書き込みなし）
+# ▲▲▲ 設定ここまで ▲▲▲
 
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $logFile = "gitkeep_log_$timestamp.txt"
 $createdFolders = @()
 
-# 除外するフォルダ名（カスタマイズ可）
+# 除外するフォルダ
 $excludeFolders = @(".git", "build", "out", "node_modules")
 
 Write-Output "=== 空フォルダチェック開始 [$timestamp] ===" | Tee-Object -FilePath $logFile
 
-# 空ディレクトリか判定する関数
+# 空フォルダ判定
 function Is-EmptyFolder($folder) {
     $items = Get-ChildItem -Path $folder -Force -Recurse -File -ErrorAction SilentlyContinue
     return ($items.Count -eq 0)
 }
 
-# 対象フォルダを再帰的に検索
+# フォルダを再帰的に走査
 $folders = Get-ChildItem -Path $RootDir -Recurse -Directory -Force | Where-Object {
+    $include = $true
     foreach ($ex in $excludeFolders) {
-        if ($_.FullName -like "*\$ex*") { return $false }
+        if ($_.FullName -like "*\$ex*") {
+            $include = $false
+            break
+        }
     }
-    return $true
+    return $include
 }
 
 foreach ($folder in $folders) {
@@ -39,8 +41,13 @@ foreach ($folder in $folders) {
             if (-Not $DryRun) {
                 New-Item -Path $gitkeepPath -ItemType File -Force | Out-Null
             }
+
             $createdFolders += $folder.FullName
-            "$($DryRun ? '[DRY-RUN] ' : '').gitkeep created in: $($folder.FullName)" | Tee-Object -FilePath $logFile -Append
+
+            $logLine = if ($DryRun) { "[DRY-RUN] .gitkeep would be created in: $($folder.FullName)" }
+                       else        { ".gitkeep created in: $($folder.FullName)" }
+
+            $logLine | Tee-Object -FilePath $logFile -Append
         }
     }
 }
@@ -52,3 +59,4 @@ if ($createdFolders.Count -eq 0) {
 }
 
 Write-Output "ログ出力完了: $logFile"
+Pause
